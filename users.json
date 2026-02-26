@@ -1,0 +1,12 @@
+{
+    "admin": {
+        "password": "admin123",
+        "tier": "free",
+        "is_admin": true
+    },
+    "user": {
+        "password": "user456",
+        "tier": "free",
+        "is_admin": false
+    }
+}
