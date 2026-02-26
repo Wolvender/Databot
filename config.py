@@ -24,12 +24,16 @@ def _ensure_directories():
 
 _ensure_directories()
 
+import streamlit as st
+
 # ────────────────────────────────────────────────
 # API & LLM Settings
 # ────────────────────────────────────────────────
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# Try to get from environment first, then Streamlit Secrets for cloud hosting
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
+
 if not GROQ_API_KEY:
-    raise RuntimeError("Missing GROQ_API_KEY in .env file. Please add it and restart.")
+    raise RuntimeError("Missing GROQ_API_KEY. Please add it to .env or Streamlit Secrets and restart.")
 
 LLM_MODEL = "llama-3.3-70b-versatile"
 LLM_TEMPERATURE = 0.1
