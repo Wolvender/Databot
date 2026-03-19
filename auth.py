@@ -34,6 +34,7 @@ def login_user(username: str, password: str, remember_me: bool = False) -> bool:
         st.session_state.username = username
         
         # Remember username for next login (pre-fill)
+        save_remembered_credentials(username, password, remember_me)
         if remember_me:
             st.session_state.remembered_username = username
         else:
@@ -48,6 +49,32 @@ def logout_user():
     st.session_state.username = None
     # Don't clear remembered_username on logout
 
-def get_remembered_username() -> str:
-    """Get remembered username if exists."""
-    return st.session_state.get("remembered_username", "")
+def get_remembered_credentials() -> tuple[str, str, bool]:
+    """Get remembered credentials from persistent file if it exists."""
+    import os, json
+    remember_file = "remembered_user.json"
+    if os.path.exists(remember_file):
+        try:
+            with open(remember_file, "r") as f:
+                data = json.load(f)
+                return data.get("username", ""), data.get("password", ""), True
+        except Exception:
+            pass
+    return "", "", False
+
+def save_remembered_credentials(username, password, remember_me):
+    """Save or clear remembered credentials persistently."""
+    import os, json
+    remember_file = "remembered_user.json"
+    if remember_me:
+        try:
+            with open(remember_file, "w") as f:
+                json.dump({"username": username, "password": password}, f)
+        except Exception:
+            pass
+    else:
+        if os.path.exists(remember_file):
+            try:
+                os.remove(remember_file)
+            except Exception:
+                pass

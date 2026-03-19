@@ -44,15 +44,23 @@ processor = DataProcessor()
 # ════════════════════════════════════════════════════════════
 if not is_logged_in():
     render_header()
-    username, password, remember_me = render_login_page()
+    action, username, password, remember_me = render_login_page()
     
-    if username and password:
+    if action == "login" and username and password:
         if login_user(username, password, remember_me):
             st.success("Signed in successfully")
             st.rerun()
         else:
             st.error("Invalid credentials")
-    
+    elif action == "signup" and username and password:
+        from user_manager import user_manager
+        if user_manager.create_user(username, password):
+            st.success("Account created successfully! Please sign in.")
+            st.session_state.auth_mode = "login"
+            st.rerun()
+        else:
+            st.error("Username already exists or invalid input.")
+            
     st.stop()
 
 # ════════════════════════════════════════════════════════════

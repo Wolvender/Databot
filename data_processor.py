@@ -5,6 +5,31 @@ from datetime import datetime
 from langchain_groq import ChatGroq
 from config import GROQ_API_KEY, LLM_MODEL, LLM_TEMPERATURE, SYSTEM_PROMPT, HISTORY_FILE
 from file_handler import get_file_hash, extract_text
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+class ExtractedField(BaseModel):
+    date: str = Field(description="YYYY-MM-DD or best guess", default="N/A")
+    entity: str = Field(description="The person, company, or subject", default="N/A")
+    reference: str = Field(description="Invoice #, PO #, Case ID", default="N/A")
+    amount: float = Field(description="The numeric value. Pure number ONLY", default=0.0)
+    currency: str = Field(description="3-letter ISO code: EUR, USD, etc.", default="N/A")
+    description: str = Field(description="A concise summary", default="N/A")
+
+class LedgerRecord(BaseModel):
+    extracted_fields: ExtractedField
+    confidence: float = Field(description="Confidence score 0.0-1.0", default=0.0)
+    validation_issues: List[dict] = Field(description="List of issues", default_factory=list)
+    status: str = Field(description="'complete' or 'partial'", default="partial")
+    document_type: str = Field(description="Document type", default="unknown")
+
+class LedgerResponse(BaseModel):
+    status: str
+    document_type: str
+    records: List[LedgerRecord]
+    summary: str
+    overall_confidence: float = 0.0
+
 
 class DataProcessor:
     """Handles LLM-based data extraction and processing."""
@@ -18,6 +43,20 @@ class DataProcessor:
         )
         self.load_history()
     
+    def get_history_file(self):
+        """Get user-specific history file path to prevent multi-tenant data leaks."""
+        from auth import get_current_username
+        import os
+        username = get_current_username()
+        if not username or username == "Unknown" or username == "":
+            return HISTORY_FILE
+            
+        directory = os.path.dirname(HISTORY_FILE) or "."
+        base = os.path.basename(HISTORY_FILE)
+        name, ext = os.path.splitext(base)
+        user_file = f"{name}_{username}{ext}"
+        return os.path.join(directory, user_file)
+
     def load_history(self):
         """Load processing history from file."""
         if "processed" not in st.session_state:
@@ -30,9 +69,10 @@ class DataProcessor:
             st.session_state.uploader_key = 0
         
         import os
-        if os.path.exists(HISTORY_FILE):
+        history_file = self.get_history_file()
+        if os.path.exists(history_file):
             try:
-                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                with open(history_file, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
                     st.session_state.processed = loaded
                     st.session_state.processed_files = {item["file"] for item in loaded}
@@ -42,8 +82,9 @@ class DataProcessor:
     
     def save_history(self):
         """Save processing history to file."""
+        history_file = self.get_history_file()
         try:
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+            with open(history_file, "w", encoding="utf-8") as f:
                 json.dump(st.session_state.processed, f, indent=2, ensure_ascii=False)
         except Exception as e:
             st.warning(f"Could not save history: {e}")
@@ -77,42 +118,6 @@ class DataProcessor:
         }
         return mapping.get(currency, "UNKNOWN")
     
-    def parse_llm_response(self, text: str) -> dict:
-        """Parse LLM response, handling markdown fences and extraneous text."""
-        text = text.strip()
-        
-        # Remove markdown fences as a first pass
-        if "```json" in text:
-            # Multi-block check: take the first or largest block if multiple exist
-            blocks = text.split("```json")
-            if len(blocks) > 1:
-                text = blocks[1].split("```")[0]
-        elif "```" in text:
-            blocks = text.split("```")
-            if len(blocks) > 1:
-                text = blocks[1]
-        
-        text = text.strip()
-        
-        # Try direct JSON load
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            # More aggressive regex-style search for JSON boundaries
-            try:
-                # Find the first '{' and the last '}'
-                start = text.find("{")
-                end = text.rfind("}")
-                if start != -1 and end != -1 and end > start:
-                    candidate = text[start:end + 1]
-                    return json.loads(candidate)
-            except:
-                pass
-            
-            # Final fallback: if it's very messy, maybe it didn't even output JSON
-            # Log for debugging (in real app we might want to store this)
-            raise json.JSONDecodeError("Could not extract valid JSON from LLM response. The data might be too complex or the model outputted conversational text.", text, 0)
-    
     def process_content(self, file_bytes: bytes, file_name: str) -> tuple[bool, str]:
         """
         Process file content with LLM and store results.
@@ -129,10 +134,10 @@ class DataProcessor:
         prompt = f"{SYSTEM_PROMPT}\n\nFile: {file_name}\n\nContent:\n{text}"
         
         try:
-            # Call LLM
-            response = self.llm.invoke(prompt)
-            result_str = response.content.strip()
-            result = self.parse_llm_response(result_str)
+            # Call LLM with native structured output
+            structured_llm = self.llm.with_structured_output(LedgerResponse)
+            result_obj = structured_llm.invoke(prompt)
+            result = result_obj.model_dump()
             
             # Handle records
             if "records" in result and isinstance(result["records"], list) and result["records"]:
@@ -140,9 +145,9 @@ class DataProcessor:
                 overall_conf = result.get("overall_confidence", 0.0)
                 overall_status = result.get("status", "partial")
             else:
-                # Fallback for single record
-                records = [{"extracted_fields": result}]
-                overall_conf = result.get("confidence", 0.0)
+                # Fallback for empty records list
+                records = [{"extracted_fields": {}}]
+                overall_conf = result.get("overall_confidence", 0.0)
                 overall_status = result.get("status", "unknown")
             
             # Process and store each record
@@ -178,29 +183,6 @@ class DataProcessor:
             self.save_history()
             
             return True, f"Processed: {file_name} ({len(records)} record(s))"
-        
-        except json.JSONDecodeError as e:
-            from logger import logger
-            # Log the full failed response for debugging
-            logger.error(f"JSON Parsing failed for {file_name}", error=e, raw_response=result_str[:2000])
-            
-            # Fallback: Create a 'Raw Extraction' record so the user gets something
-            st.session_state.processed.append({
-                "file": file_name,
-                "file_hash": file_hash,
-                "record_index": 0,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "status": "needs_review",
-                "confidence": 0.3,
-                "document_type": "raw_extraction",
-                "data": {"raw_text_found": result_str},
-                "issues": [{"field": "json_parsing", "severity": "error", "message": "The AI response was not in the expected format. Showing raw output instead."}],
-                "raw": {"full_response": result_str}
-            })
-            st.session_state.processed_files.add(file_name)
-            st.session_state.processed_hashes.add(file_hash)
-            self.save_history()
-            return True, f"Recovered raw info from: {file_name} (JSON parsing failed)"
             
         except Exception as e:
             from logger import logger
@@ -215,8 +197,9 @@ class DataProcessor:
         st.session_state.processed_hashes = set()
         st.session_state.uploader_key += 1
         
-        if os.path.exists(HISTORY_FILE):
-            os.remove(HISTORY_FILE)
+        history_file = self.get_history_file()
+        if os.path.exists(history_file):
+            os.remove(history_file)
         
         self.save_history()
 

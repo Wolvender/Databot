@@ -8,5 +8,10 @@
         "password": "user456",
         "tier": "free",
         "is_admin": false
+    },
+    "senna": {
+        "password": "senna",
+        "tier": "free",
+        "is_admin": false
     }
 }

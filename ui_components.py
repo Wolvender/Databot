@@ -209,53 +209,65 @@ def render_header():
     """, unsafe_allow_html=True)
     return None
 
-def render_login_page() -> tuple[str, str, bool]:
+def render_login_page() -> tuple[str, str, str, bool]:
     """
-    Render login page with full Remember Me (User + Password).
-    Note: Storing passwords in localStorage is not secure for production.
+    Render premium login/signup page. Returns (action, username, password, remember_me).
     """
-    st.title("Welcome to DataBot")
-    st.markdown("Intelligent Document Extraction – Fast, Secure, Accurate")
+    if "auth_mode" not in st.session_state:
+        st.session_state.auth_mode = "login"
+        
+    from auth import get_remembered_credentials
+    rem_user, rem_pass, is_rem = get_remembered_credentials()
+        
+    # Header with logo
+    st.markdown(f"""
+        <div class="main-header" style="margin-bottom: 2rem; padding: 2rem;">
+            <div class="logo" style="font-size: 3rem;">
+                {LOGO_SVG}
+                DataBot
+            </div>
+            <p>Intelligent Document Extraction – Fast, Accurate, Secure</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # JavaScript to handle localStorage for username AND password
-    # Loaded from external file for cleanliness
-    login_js = ""
-    try:
-        with open("login_script.js", "r") as f:
-            login_js = f.read()
-    except FileNotFoundError:
-        st.error("Error: login_script.js not found.")
-
-    st.components.v1.html(f"<script>{login_js}</script>", height=0)
-    
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("<h3 style='text-align:center;'>Sign In</h3>", unsafe_allow_html=True)
-        
-        with st.form("login_form"):
-            username = st.text_input("Username", placeholder="admin / user", autocomplete="username")
-            password = st.text_input("Password", type="password", placeholder="•••••••", autocomplete="current-password")
-            remember_me = st.checkbox("Remember me", value=False)
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        if st.session_state.auth_mode == "login":
+            st.markdown("<h3 style='text-align:center; color: #6b21a8; margin-bottom: 1.5rem;'>Sign In</h3>", unsafe_allow_html=True)
+            with st.form("login_form", clear_on_submit=False):
+                username = st.text_input("Username", value=rem_user, placeholder="admin / user", autocomplete="username")
+                password = st.text_input("Password", type="password", value=rem_pass, placeholder="•••••••", autocomplete="current-password")
+                remember_me = st.checkbox("Remember me on this device", value=is_rem)
+                submitted = st.form_submit_button("Sign In", type="primary", use_container_width=True)
             
-            submitted = st.form_submit_button("Sign In", type="primary", use_container_width=True)
-        
-        if submitted:
-            # Send JS message to save/clear creds
-            if remember_me:
-                st.components.v1.html(
-                    f"""<script>
-                    window.parent.postMessage({{type: 'save_creds', u: '{username}', p: '{password}'}}, '*');
-                    </script>""", 
-                    height=0
-                )
-            else:
-                st.components.v1.html(
-                    "<script>window.parent.postMessage({type: 'clear_creds'}, '*');</script>", 
-                    height=0
-                )
-            return username, password, remember_me
+            st.markdown("<p style='text-align:center; margin-top: 1rem; opacity: 0.8;'>Need an account?</p>", unsafe_allow_html=True)
+            if st.button("Sign Up Now", use_container_width=True):
+                st.session_state.auth_mode = "signup"
+                st.rerun()
+                
+            if submitted:
+                st.markdown('</div>', unsafe_allow_html=True)
+                return "login", username, password, remember_me
+        else:
+            st.markdown("<h3 style='text-align:center; color: #6b21a8; margin-bottom: 1.5rem;'>Create Account</h3>", unsafe_allow_html=True)
+            with st.form("signup_form", clear_on_submit=False):
+                username = st.text_input("New Username", placeholder="Choose a username", autocomplete="username")
+                password = st.text_input("New Password", type="password", placeholder="•••••••", autocomplete="new-password")
+                remember_me = st.checkbox("Remember me on this device", value=True)
+                submitted = st.form_submit_button("Create Account", type="primary", use_container_width=True)
+            
+            st.markdown("<p style='text-align:center; margin-top: 1rem; opacity: 0.8;'>Already have an account?</p>", unsafe_allow_html=True)
+            if st.button("Sign In Instead", use_container_width=True):
+                st.session_state.auth_mode = "login"
+                st.rerun()
+                
+            if submitted:
+                st.markdown('</div>', unsafe_allow_html=True)
+                return "signup", username, password, remember_me
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    return "", "", False
+    return None, "", "", False
 
 def render_sidebar(username: str):
     """Sidebar removed as per user request."""
@@ -508,12 +520,5 @@ def render_upgrade_page(username: str):
                 st.button("Current Plan", key=f"btn_{tier}", disabled=True, use_container_width=True)
             else:
                 if st.button("Upgrade", key=f"btn_{tier}", use_container_width=True):
-                    from user_manager import user_manager
-                    if user_manager.update_tier(username, tier):
-                        st.toast(f"🎉 Upgraded to {tier.value.title()}!", icon="🚀")
-                        # Allow UI update
-                        import time
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("Error updating plan.")
+                    st.toast("🚧 Upgrades are currently under construction!", icon="🚧")
+                    st.warning("Payment processing is under construction. Upgrades are temporarily disabled.", icon="🚧")

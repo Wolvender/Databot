@@ -70,5 +70,19 @@ class UserManager:
             return True
         return False
 
+    def create_user(self, username: str, password: str) -> bool:
+        """Create a new user with default free tier."""
+        if not username or not password:
+            return False
+        if username in self.users:
+            return False
+        self.users[username] = {
+            "password": password,
+            "tier": "free",
+            "is_admin": False
+        }
+        self.save_users()
+        return True
+
 # Global instance
 user_manager = UserManager()
