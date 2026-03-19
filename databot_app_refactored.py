@@ -55,9 +55,14 @@ if not is_logged_in():
     elif action == "signup" and username and password:
         from user_manager import user_manager
         if user_manager.create_user(username, password):
-            st.success("Account created successfully! Please sign in.")
-            st.session_state.auth_mode = "login"
-            st.rerun()
+            # Auto-login after signup
+            if login_user(username, password, remember_me):
+                st.success("Account created and signed in successfully!")
+                st.rerun()
+            else:
+                st.success("Account created successfully! Please sign in.")
+                st.session_state.auth_mode = "login"
+                st.rerun()
         else:
             st.error("Username already exists or invalid input.")
             
@@ -76,7 +81,19 @@ if header_action == "logout":
 # sidebar_action = render_sidebar(get_current_username())
 
 # Main content tabs
-tab_upload, tab_results, tab_account = st.tabs(["Upload & Process", "View Results", "Account & Billing"])
+TAB_NAMES = ["Upload & Process", "View Results", "Account & Billing"]
+tab_upload, tab_results, tab_account = st.tabs(TAB_NAMES)
+
+# JS-based tab switcher: if current_tab is set, click the matching tab button
+if "current_tab" in st.session_state and st.session_state.current_tab in TAB_NAMES:
+    tab_index = TAB_NAMES.index(st.session_state.current_tab)
+    st.session_state.current_tab = None  # reset so it doesn't repeat
+    st.markdown(f"""
+        <script>
+        const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
+        if (tabs.length > {tab_index}) {{ tabs[{tab_index}].click(); }}
+        </script>
+    """, unsafe_allow_html=True)
 
 # ────────────────────────────────────────────────────────────
 # TAB 1: Upload & Process

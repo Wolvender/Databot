@@ -8,12 +8,16 @@ from file_handler import get_file_hash, extract_text
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+from validators import DataValidator
+
 class ExtractedField(BaseModel):
     date: str = Field(description="YYYY-MM-DD or best guess", default="N/A")
     entity: str = Field(description="The person, company, or subject", default="N/A")
     reference: str = Field(description="Invoice #, PO #, Case ID", default="N/A")
     amount: float = Field(description="The numeric value. Pure number ONLY", default=0.0)
+    tax_amount: float = Field(description="VAT/Tax amount if explicitly stated", default=0.0)
     currency: str = Field(description="3-letter ISO code: EUR, USD, etc.", default="N/A")
+    vat_number: str = Field(description="VAT/Tax ID of the entity if found", default="N/A")
     description: str = Field(description="A concise summary", default="N/A")
 
 class LedgerRecord(BaseModel):
@@ -91,32 +95,59 @@ class DataProcessor:
     
     @staticmethod
     def clean_number(value):
-        """Remove currency symbols and convert to number."""
-        if not value:
-            return value
+        """Remove currency symbols and convert to number, handling both . and , as decimals."""
+        if value is None or value == "" or value == "N/A":
+            return 0.0
         
         value = str(value).strip()
-        for token in ["EUR", "EURO", "EUROS", "€", "USD", "$", "GBP", "£", "EUREUR", "euro", "eur"]:
+        # Remove common currency symbols and filler
+        for token in ["EUR", "EURO", "EUROS", "€", "USD", "$", "GBP", "£", "eur", "usd", "gbp"]:
             value = value.replace(token, "").strip()
         
+        if not value:
+            return 0.0
+
         try:
+            # Handle European format: "1.234,56" -> "1234.56"
+            if "," in value and "." in value:
+                if value.find(".") < value.find(","): # Dot is thousands separator
+                    value = value.replace(".", "").replace(",", ".")
+                else: # Comma is thousands separator
+                    value = value.replace(",", "")
+            elif "," in value: # Only comma - could be decimal or thousands
+                # If only one comma and it's near the end, assume decimal
+                if value.count(",") == 1 and len(value.split(",")[1]) <= 2:
+                    value = value.replace(",", ".")
+                else:
+                    value = value.replace(",", "")
+            
             return float(value)
         except ValueError:
             return value
     
     @staticmethod
     def normalize_currency(currency: str) -> str:
-        """Normalize currency codes to ISO 3-letter codes."""
-        if not currency:
-            return "UNKNOWN"
+        """Normalize currency codes to ISO 3-letter codes without losing data."""
+        if not currency or currency == "N/A":
+            return "N/A"
         
-        currency = str(currency).upper().strip().replace(" ", "")
+        original = str(currency).strip()
+        currency = original.upper().replace(" ", "")
+        
         mapping = {
-            "EUR": "EUR", "EURO": "EUR", "EUROS": "EUR", "€": "EUR", "EUREUR": "EUR",
-            "USD": "USD", "DOLLAR": "USD", "DOLLARS": "USD", "$": "USD",
-            "GBP": "GBP", "POUND": "GBP", "POUNDS": "GBP", "£": "GBP",
+            "EURO": "EUR", "EUROS": "EUR", "€": "EUR",
+            "DOLLAR": "USD", "DOLLARS": "USD", "$": "USD",
+            "POUND": "GBP", "POUNDS": "GBP", "£": "GBP",
         }
-        return mapping.get(currency, "UNKNOWN")
+        
+        if currency in mapping:
+            return mapping[currency]
+            
+        # If it's already a 3-letter alpha code (like CHF, AUD, SEK), keep it!
+        if len(currency) == 3 and currency.isalpha():
+            return currency
+            
+        return original # Keep original if we're not sure, don't just say "UNKNOWN"
     
     def process_content(self, file_bytes: bytes, file_name: str) -> tuple[bool, str]:
         """
@@ -139,18 +170,57 @@ class DataProcessor:
             result_obj = structured_llm.invoke(prompt)
             result = result_obj.model_dump()
             
-            # Handle records
+            # Initial extraction results
             if "records" in result and isinstance(result["records"], list) and result["records"]:
                 records = result["records"]
                 overall_conf = result.get("overall_confidence", 0.0)
                 overall_status = result.get("status", "partial")
             else:
-                # Fallback for empty records list
                 records = [{"extracted_fields": {}}]
                 overall_conf = result.get("overall_confidence", 0.0)
                 overall_status = result.get("status", "unknown")
             
-            # Process and store each record
+            # Smart Self-Correction Loop
+            needs_correction = False
+            correction_feedback = []
+            
+            for idx, rec in enumerate(records):
+                data = rec.get("extracted_fields", {})
+                issues = DataValidator.validate_record(data)
+                rec["validation_issues"] = issues
+                
+                # If we have errors, we trigger a correction pass
+                if any(i["severity"] == "error" for i in issues):
+                    needs_correction = True
+                    error_msgs = [f"Field '{i['field']}': {i['message']}" for i in issues if i["severity"] == "error"]
+                    correction_feedback.append(f"Record {idx+1} issues: {', '.join(error_msgs)}")
+
+            if needs_correction:
+                # Second pass: Self-Correction
+                correction_prompt = f"""
+                {SYSTEM_PROMPT}
+                
+                I previously extracted data from the file below, but there were validation errors.
+                Please re-examine the source text and provide CORRECTED structured data.
+                
+                SOURCE TEXT:
+                {text[:4000]}
+                
+                ERRORS FOUND IN PREVIOUS EXTRACTION:
+                {chr(10).join(correction_feedback)}
+                
+                Return the full corrected LedgerResponse.
+                """
+                try:
+                    corrected_obj = structured_llm.invoke(correction_prompt)
+                    result = corrected_obj.model_dump()
+                    records = result.get("records", records)
+                    overall_conf = result.get("overall_confidence", overall_conf)
+                except Exception as correction_err:
+                    from logger import logger
+                    logger.warning(f"Self-correction failed for {file_name}: {correction_err}")
+
+            # Process and store each record (Final version)
             for idx, rec in enumerate(records):
                 data = rec.get("extracted_fields", {})
                 
@@ -158,8 +228,12 @@ class DataProcessor:
                 if "currency" in data:
                     data["currency"] = self.normalize_currency(data["currency"])
                 
-                # Dynamic normalization for any numeric fields we recognize
-                common_numeric = ["total_amount", "amount", "price", "unit_price", "line_total", "hours_worked", "rate_per_hour", "quantity", "total"]
+                # Run validation one last time for the final report
+                final_issues = DataValidator.validate_record(data)
+                quality_score = DataValidator.calculate_quality_score(data, final_issues)
+                
+                # Dynamic normalization for any numeric fields
+                common_numeric = ["amount", "tax_amount", "total", "price", "hours"]
                 for key in data.keys():
                     if any(term in key.lower() for term in common_numeric):
                         data[key] = self.clean_number(data[key])
@@ -170,11 +244,11 @@ class DataProcessor:
                     "file_hash": file_hash,
                     "record_index": idx,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "status": rec.get("status", overall_status),
-                    "confidence": rec.get("confidence", overall_conf),
-                    "document_type": rec.get("record_type", rec.get("document_type", result.get("document_type", "unknown"))),
+                    "status": "verified" if not any(i["severity"] == "error" for i in final_issues) else "needs_review",
+                    "confidence": max(rec.get("confidence", overall_conf), quality_score),
+                    "document_type": rec.get("document_type", result.get("document_type", "unknown")),
                     "data": data,
-                    "issues": rec.get("validation_issues", []),
+                    "issues": final_issues,
                     "raw": result
                 })
             

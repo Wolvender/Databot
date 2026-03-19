@@ -7,183 +7,8 @@ from io import BytesIO
 from config import STREAMLIT_THEME, LOGO_SVG, APP_NAME
 
 def apply_theme():
-    """Apply premium theme styling to the app."""
-    # Updated CSS with dark purple and dark gray theme
-    # Dark gray for backgrounds (#111827), dark purple for accents (#6b21a8)
-    # Added cool effects: glassmorphism, hover transitions, subtle animations
-    css = """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-    * {
-        font-family: 'Inter', sans-serif !important;
-    }
-
-    .stApp {
-        background-color: #111827; /* Dark gray background */
-        color: #e0e0e0;
-    }
-
-    .stSidebar {
-        background-color: #1f2937; /* Darker gray for sidebar */
-        border-right: 1px solid #374151;
-    }
-
-    /* Global: Hide kbd elements */
-    kbd {
-        display: none !important;
-    }
-
-    /* Targeted: Hide only shortcut containers (usually spans) in buttons */
-    /* Sidebar buttons */
-    [data-testid="stSidebar"] button span[class*="keyboard"],
-    [data-testid="stSidebar"] button span:nth-child(2),
-    [data-testid="stSidebar"] button svg {
-        display: none !important;
-    }
-
-    /* Expander buttons */
-    .stExpander button span[class*="keyboard"],
-    .stExpander button svg {
-        display: none !important;
-    }
-
-    /* Ensure text (usually in div or p) remains VISIBLE */
-    button div,
-    button p {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-    }
-
-    /* Premium header with gradient (dark purple theme) */
-    .main-header {
-        background: linear-gradient(135deg, #6b21a8, #581c87); /* Dark purple gradient */
-        padding: 1.5rem 2rem;
-        border-radius: 0 0 12px 12px;
-        margin: -1rem -2rem 2rem -2rem;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        animation: fadeInHeader 1s ease-out;
-    }
-
-    @keyframes fadeInHeader {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    .main-header h1 {
-        margin: 0;
-        font-size: 2.2rem;
-    }
-
-    .main-header p {
-        margin: 4px 0 0;
-        opacity: 0.9;
-    }
-
-    /* Buttons with hover effects */
-    .stButton > button {
-        background-color: #6b21a8; /* Dark purple */
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 8px 16px;
-        font-weight: 600;
-        width: 100%;
-        margin-bottom: 8px;
-        transition: all 0.3s ease;
-    }
-
-    .stButton > button:hover {
-        background-color: #581c87; /* Darker purple */
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(106,33,168,0.3);
-    }
-
-    .stButton > button:disabled {
-        background-color: #374151;
-        color: #9ca3af;
-    }
-
-    .stSuccess {
-        background-color: #064e3b;
-        color: #a7f3d0;
-        border: 1px solid #10b981;
-        border-radius: 8px;
-        padding: 12px;
-    }
-
-    .stExpander {
-        background-color: #1f2937; /* Dark gray glass effect */
-        border: 1px solid #374151;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        transition: all 0.3s ease;
-    }
-
-    .stExpander:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-
-    .stExpander > div > div {
-        line-height: 1.6;
-        padding: 12px;
-    }
-
-    /* Hide keyboard shortcuts in expanders */
-    .stExpander kbd,
-    .stExpander button kbd {
-        display: none !important;
-    }
-
-    .stDataFrame {
-        background-color: #111827; /* Dark gray */
-    }
-
-    hr {
-        border-color: #374151;
-    }
-
-    .stSpinner {
-        text-align: center;
-    }
-
-    .result-banner {
-        background-color: #6b21a8; /* Dark purple banner */
-        color: #e0e0e0;
-        padding: 16px;
-        border-radius: 8px;
-        border: 1px solid #581c87;
-        margin: 16px 0;
-        font-size: 1.1em;
-        text-align: center;
-        animation: fadeInBanner 0.8s ease-out;
-    }
-
-    @keyframes fadeInBanner {
-        from { opacity: 0; transform: scale(0.95); }
-        to { opacity: 1; transform: scale(1); }
-    }
-
-    /* Glassmorphism for cards (cool premium effect) */
-    .glass-card {
-        background: rgba(55, 65, 81, 0.5); /* Semi-transparent dark gray */
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
-        padding: 20px;
-        border: 1px solid rgba(255,255,255,0.1);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: all 0.3s ease;
-    }
-
-    .glass-card:hover {
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-    }
-    </style>
-    """
-    st.markdown(css, unsafe_allow_html=True)
+    """Apply premium theme styling to the app using config settings."""
+    st.markdown(STREAMLIT_THEME, unsafe_allow_html=True)
 
 def render_header():
     """Render a clean, premium app header with logo, name, and tagline. Returns 'logout' if Sign Out clicked."""
@@ -194,19 +19,19 @@ def render_header():
         if st.button("Sign Out", type="secondary", use_container_width=True):
             return "logout"
     
-    st.markdown("""
-        <div class="main-header">
-            <div class="logo">
-                <!-- Simple SVG logo (replace later if needed) -->
-                <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="45" stroke="white" stroke-width="6" stroke-dasharray="10 10"/>
-                    <path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                DataBot
-            </div>
-            <p>Intelligent Document Extraction – Fast, Accurate, Secure</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+"""
+<div class="main-header">
+    <div class="logo">
+        <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="45" stroke="white" stroke-width="6" stroke-dasharray="10 10"/>
+            <path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        DataBot
+    </div>
+    <p>Intelligent Document Extraction – Fast, Accurate, Secure</p>
+</div>
+""", unsafe_allow_html=True)
     return None
 
 def render_login_page() -> tuple[str, str, str, bool]:
@@ -219,20 +44,11 @@ def render_login_page() -> tuple[str, str, str, bool]:
     from auth import get_remembered_credentials
     rem_user, rem_pass, is_rem = get_remembered_credentials()
         
-    # Header with logo
-    st.markdown(f"""
-        <div class="main-header" style="margin-bottom: 2rem; padding: 2rem;">
-            <div class="logo" style="font-size: 3rem;">
-                {LOGO_SVG}
-                DataBot
-            </div>
-            <p>Intelligent Document Extraction – Fast, Accurate, Secure</p>
-        </div>
-    """, unsafe_allow_html=True)
+    # Apply glass-card to the specific stForm container so it doesn't break Streamlit DOM
+    st.markdown('<style>[data-testid="stForm"] { background: rgba(30, 30, 30, 0.72); backdrop-filter: blur(18px); padding: 2.2rem; border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 10px 38px rgba(0,0,0,0.45); }</style>', unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         if st.session_state.auth_mode == "login":
             st.markdown("<h3 style='text-align:center; color: #6b21a8; margin-bottom: 1.5rem;'>Sign In</h3>", unsafe_allow_html=True)
             with st.form("login_form", clear_on_submit=False):
@@ -247,7 +63,6 @@ def render_login_page() -> tuple[str, str, str, bool]:
                 st.rerun()
                 
             if submitted:
-                st.markdown('</div>', unsafe_allow_html=True)
                 return "login", username, password, remember_me
         else:
             st.markdown("<h3 style='text-align:center; color: #6b21a8; margin-bottom: 1.5rem;'>Create Account</h3>", unsafe_allow_html=True)
@@ -263,9 +78,7 @@ def render_login_page() -> tuple[str, str, str, bool]:
                 st.rerun()
                 
             if submitted:
-                st.markdown('</div>', unsafe_allow_html=True)
                 return "signup", username, password, remember_me
-        st.markdown('</div>', unsafe_allow_html=True)
     
     return None, "", "", False
 

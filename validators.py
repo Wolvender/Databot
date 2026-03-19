@@ -104,118 +104,64 @@ class DataValidator:
         return True, ""
     
     @staticmethod
-    def validate_record(data: Dict, document_type: str) -> List[Dict]:
+    def validate_record(data: Dict, document_type: str = "general") -> List[Dict]:
         """
         Validate entire record based on document type.
+        Supports both specific (invoice_date) and generic (date) field names.
         
         Returns:
             List of validation issues
         """
         issues = []
         
-        # Common validations
-        if "currency" in data:
-            valid, msg = DataValidator.validate_currency(data["currency"])
-            if not valid:
-                issues.append({
-                    "field": "currency",
-                    "severity": "error",
-                    "message": msg
-                })
+        # Mapping generic fields to validation logic
+        field_mapping = {
+            "currency": DataValidator.validate_currency,
+            "amount": lambda v: DataValidator.validate_amount(v, "amount"),
+            "total_amount": lambda v: DataValidator.validate_amount(v, "total_amount"),
+            "date": lambda v: DataValidator.validate_date(v, "date"),
+            "invoice_date": lambda v: DataValidator.validate_date(v, "invoice_date"),
+            "due_date": lambda v: DataValidator.validate_date(v, "due_date"),
+            "reference": lambda v: DataValidator.validate_invoice_number(v) if v and v != "N/A" else (True, ""),
+            "invoice_number": DataValidator.validate_invoice_number,
+        }
         
-        if "total_amount" in data:
-            valid, msg = DataValidator.validate_amount(data["total_amount"], "total_amount")
-            if not valid:
-                issues.append({
-                    "field": "total_amount",
-                    "severity": "error",
-                    "message": msg
-                })
+        for field, validator in field_mapping.items():
+            if field in data and data[field] not in [None, "", "N/A"]:
+                valid, msg = validator(data[field])
+                if not valid:
+                    issues.append({
+                        "field": field,
+                        "severity": "error" if "required" in msg.lower() or "invalid" in msg.lower() else "warning",
+                        "message": msg
+                    })
         
-        # Document-specific validations
-        if document_type == "invoice":
-            if "invoice_number" in data:
-                valid, msg = DataValidator.validate_invoice_number(data["invoice_number"])
-                if not valid:
-                    issues.append({
-                        "field": "invoice_number",
-                        "severity": "error",
-                        "message": msg
-                    })
-            
-            if "invoice_date" in data:
-                valid, msg = DataValidator.validate_date(data["invoice_date"], "invoice_date")
-                if not valid:
-                    issues.append({
-                        "field": "invoice_date",
-                        "severity": "warning",
-                        "message": msg
-                    })
-            
-            if "due_date" in data:
-                valid, msg = DataValidator.validate_date(data["due_date"], "due_date")
-                if not valid:
-                    issues.append({
-                        "field": "due_date",
-                        "severity": "warning",
-                        "message": msg
-                    })
-            
-            # Check if due_date is after invoice_date
-            if "invoice_date" in data and "due_date" in data:
-                try:
-                    inv_date = datetime.strptime(str(data["invoice_date"]), "%Y-%m-%d")
-                    due_date = datetime.strptime(str(data["due_date"]), "%Y-%m-%d")
-                    if due_date < inv_date:
+        # Document-specific cross-field validations
+        if "date" in data and "due_date" in data:
+            try:
+                d1 = str(data["date"])
+                d2 = str(data["due_date"])
+                # Basic YYYY-MM-DD check
+                if re.match(r'^\d{4}-\d{2}-\d{2}$', d1) and re.match(r'^\d{4}-\d{2}-\d{2}$', d2):
+                    if d2 < d1:
                         issues.append({
                             "field": "due_date",
-                            "severity": "error",
-                            "message": "Due date cannot be before invoice date"
+                            "severity": "warning",
+                            "message": "Due date is before the document date"
                         })
-                except:
-                    pass
+            except:
+                pass
         
-        elif document_type == "timesheet":
-            if "hours_worked" in data:
-                valid, msg = DataValidator.validate_amount(data["hours_worked"], "hours_worked")
+        # Email and VAT (if present)
+        for field in ["email", "vat_number"]:
+            if field in data and data[field] not in [None, "", "N/A"]:
+                valid, msg = getattr(DataValidator, f"validate_{field}")(data[field])
                 if not valid:
                     issues.append({
-                        "field": "hours_worked",
-                        "severity": "error",
+                        "field": field,
+                        "severity": "warning",
                         "message": msg
                     })
-                else:
-                    # Check reasonable hours (0-24 per day)
-                    try:
-                        hours = float(data["hours_worked"])
-                        if hours > 24:
-                            issues.append({
-                                "field": "hours_worked",
-                                "severity": "warning",
-                                "message": "Hours worked exceeds 24 hours"
-                            })
-                    except:
-                        pass
-        
-        # Email validation
-        if "email" in data:
-            valid, msg = DataValidator.validate_email(data["email"])
-            if not valid:
-                issues.append({
-                    "field": "email",
-                    "severity": "warning",
-                    "message": msg
-                })
-        
-        # VAT validation
-        if "vat_number" in data:
-            valid, msg = DataValidator.validate_vat_number(data["vat_number"])
-            if not valid:
-                issues.append({
-                    "field": "vat_number",
-                    "severity": "warning",
-                    "message": msg
-                })
         
         return issues
     

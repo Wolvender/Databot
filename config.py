@@ -60,8 +60,10 @@ Rules for Extraction:
    - `date`: (YYYY-MM-DD or best guess)
    - `entity`: (The person, company, or subject of the record)
    - `reference`: (Invoice #, PO #, Case ID, or unique identifier)
-   - `amount`: (The numeric value. Pure number ONLY)
+   - `amount`: (The net or total numeric value. Pure number ONLY)
+   - `tax_amount`: (VAT/Tax amount if explicitly stated)
    - `currency`: (3-letter ISO code: EUR, USD, etc.)
+   - `vat_number`: (VAT/Tax ID of the entity if found)
    - `description`: (A concise summary of what this entry is about)
 3. **Multi-Record Output**: If the file contains many "items" or "notes", extract each as its own object in the `records` list.
 4. **Clean Input**: Strip out conversational filler. If a field is missing, set it to "N/A" rather than leaving it out.
@@ -77,7 +79,9 @@ Output Format (STRICT JSON ONLY):
         "entity": "...",
         "reference": "...",
         "amount": 0.0,
+        "tax_amount": 0.0,
         "currency": "...",
+        "vat_number": "...",
         "description": "..."
       },
       "confidence": 0.0-1.0,
