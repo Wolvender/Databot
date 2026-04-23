@@ -30,6 +30,7 @@ class LedgerSchema(BaseModel):
     date: str = Field(description="Date found in document")
     entity: str = Field(description="Company or Person name")
     amount: str = Field(description="Total amount as a number, e.g. 1100.00")
+    currency: str = Field(description="3-letter currency code (e.g. EUR, USD).")
 
 class InventorySchema(BaseModel):
     item_name: str = Field(description="Name of the item")

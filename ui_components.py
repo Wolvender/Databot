@@ -112,7 +112,8 @@ def render_upload_section(processed_count: int):
         "Upload files (PDF or TXT)",
         accept_multiple_files=True,
         type=["pdf", "txt"],
-        key=f"uploader_{st.session_state.uploader_key}"
+        key=f"uploader_{st.session_state.uploader_key}",
+        label_visibility="hidden"
     )
     
     return uploaded_files
