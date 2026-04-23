@@ -29,4 +29,4 @@ COPY . /app/
 EXPOSE 8501
 
 # Run the application
-CMD ["streamlit", "run", "databot_app_refactored.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "databot_app_refactored.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
