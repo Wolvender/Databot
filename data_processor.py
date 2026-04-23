@@ -1,5 +1,6 @@
 # data_processor.py - LLM and data processing logic
 import json
+import re
 import streamlit as st
 from datetime import datetime
 from langchain_groq import ChatGroq
@@ -95,14 +96,13 @@ class DataProcessor:
     
     @staticmethod
     def clean_number(value):
-        """Remove currency symbols and convert to number, handling both . and , as decimals."""
+        """Remove currency symbols and convert to number using RegEx for cleaner Python code."""
         if value is None or value == "" or value == "N/A":
             return 0.0
         
         value = str(value).strip()
-        # Remove common currency symbols and filler
-        for token in ["EUR", "EURO", "EUROS", "€", "USD", "$", "GBP", "£", "eur", "usd", "gbp"]:
-            value = value.replace(token, "").strip()
+        # Python Mastery: Use RegEx to strip all characters except digits, dots, commas, and negative signs
+        value = re.sub(r'[^\d\.,\-]', '', value)
         
         if not value:
             return 0.0
@@ -151,112 +151,50 @@ class DataProcessor:
     
     def process_content(self, file_bytes: bytes, file_name: str) -> tuple[bool, str]:
         """
-        Process file content with LLM and store results.
-        Returns: (success: bool, message: str)
+        Process file content using the router to pick the correct plugin.
         """
+        from test_routing import Router
+        from processor_registry import ProcessorRegistry
+        
         file_hash = get_file_hash(file_bytes)
         
-        # Check if file already processed
         if file_hash in st.session_state.processed_hashes:
             return True, f"Skipped (identical content): {file_name}"
         
-        # Extract text from file
         text = extract_text(file_bytes, file_name)
-        prompt = f"{SYSTEM_PROMPT}\n\nFile: {file_name}\n\nContent:\n{text}"
         
+        # 1. Identify Document Type
+        router = Router()
+        doc_type = router.identify_type(text)
+        plugin = ProcessorRegistry.get(doc_type)
+        
+        if not plugin:
+            return False, f"Could not identify a registered processor for type: {doc_type}"
+
         try:
-            # Call LLM with native structured output
-            structured_llm = self.llm.with_structured_output(LedgerResponse)
-            result_obj = structured_llm.invoke(prompt)
-            result = result_obj.model_dump()
+            # 2. Use Dynamic Schema
+            structured_llm = self.llm.with_structured_output(plugin.schema)
+            prompt = f"{plugin.system_prompt}\n\nContent:\n{text}"
             
-            # Initial extraction results
-            if "records" in result and isinstance(result["records"], list) and result["records"]:
-                records = result["records"]
-                overall_conf = result.get("overall_confidence", 0.0)
-                overall_status = result.get("status", "partial")
-            else:
-                records = [{"extracted_fields": {}}]
-                overall_conf = result.get("overall_confidence", 0.0)
-                overall_status = result.get("status", "unknown")
+            result_data = structured_llm.invoke(prompt).model_dump()
             
-            # Smart Self-Correction Loop
-            needs_correction = False
-            correction_feedback = []
+            # Post-processing: Clean numeric fields if they exist
+            if "amount" in result_data:
+                result_data["amount"] = self.clean_number(result_data["amount"])
             
-            for idx, rec in enumerate(records):
-                data = rec.get("extracted_fields", {})
-                issues = DataValidator.validate_record(data)
-                rec["validation_issues"] = issues
-                
-                # If we have errors, we trigger a correction pass
-                if any(i["severity"] == "error" for i in issues):
-                    needs_correction = True
-                    error_msgs = [f"Field '{i['field']}': {i['message']}" for i in issues if i["severity"] == "error"]
-                    correction_feedback.append(f"Record {idx+1} issues: {', '.join(error_msgs)}")
-
-            if needs_correction:
-                # Second pass: Self-Correction
-                correction_prompt = f"""
-                {SYSTEM_PROMPT}
-                
-                I previously extracted data from the file below, but there were validation errors.
-                Please re-examine the source text and provide CORRECTED structured data.
-                
-                SOURCE TEXT:
-                {text[:4000]}
-                
-                ERRORS FOUND IN PREVIOUS EXTRACTION:
-                {chr(10).join(correction_feedback)}
-                
-                Return the full corrected LedgerResponse.
-                """
-                try:
-                    corrected_obj = structured_llm.invoke(correction_prompt)
-                    result = corrected_obj.model_dump()
-                    records = result.get("records", records)
-                    overall_conf = result.get("overall_confidence", overall_conf)
-                except Exception as correction_err:
-                    from logger import logger
-                    logger.warning(f"Self-correction failed for {file_name}: {correction_err}")
-
-            # Process and store each record (Final version)
-            for idx, rec in enumerate(records):
-                data = rec.get("extracted_fields", {})
-                
-                # Normalize fields
-                if "currency" in data:
-                    data["currency"] = self.normalize_currency(data["currency"])
-                
-                # Run validation one last time for the final report
-                final_issues = DataValidator.validate_record(data)
-                quality_score = DataValidator.calculate_quality_score(data, final_issues)
-                
-                # Dynamic normalization for any numeric fields
-                common_numeric = ["amount", "tax_amount", "total", "price", "hours"]
-                for key in data.keys():
-                    if any(term in key.lower() for term in common_numeric):
-                        data[key] = self.clean_number(data[key])
-                
-                # Store processed record
-                st.session_state.processed.append({
-                    "file": file_name,
-                    "file_hash": file_hash,
-                    "record_index": idx,
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "status": "verified" if not any(i["severity"] == "error" for i in final_issues) else "needs_review",
-                    "confidence": max(rec.get("confidence", overall_conf), quality_score),
-                    "document_type": rec.get("document_type", result.get("document_type", "unknown")),
-                    "data": data,
-                    "issues": final_issues,
-                    "raw": result
-                })
+            # Store processed record
+            st.session_state.processed.append({
+                "file": file_name,
+                "file_hash": file_hash,
+                "record_index": 0,
+                "document_type": doc_type,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "data": result_data,
+                "status": "complete"
+            })
             
-            st.session_state.processed_files.add(file_name)
-            st.session_state.processed_hashes.add(file_hash)
             self.save_history()
-            
-            return True, f"Processed: {file_name} ({len(records)} record(s))"
+            return True, f"Processed {file_name} as {doc_type}"
             
         except Exception as e:
             from logger import logger

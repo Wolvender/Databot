@@ -1,17 +1,22 @@
 {
     "admin": {
-        "password": "admin123",
         "tier": "free",
-        "is_admin": true
+        "is_admin": true,
+        "password_hash": "$2b$12$3cGjgcKm3xSzvkUca4ie0uVVGa./42MCNa1wN52O6Iwu4Xu8hqOfu",
+        "remember_tokens": {}
     },
     "user": {
-        "password": "user456",
         "tier": "free",
-        "is_admin": false
+        "is_admin": false,
+        "password_hash": "$2b$12$a5tOVNsibNo2jZd8iTkMbOheUak.ICGpoCGcXNhUNGrxuOaKhlPbu",
+        "remember_tokens": {}
     },
     "senna": {
-        "password": "senna",
         "tier": "free",
-        "is_admin": false
+        "is_admin": false,
+        "password_hash": "$2b$12$lShu5EBsTHkJfQcbY0/pjOCNj9mHh3KrkArV1zdCq/n0TW34DA7Re",
+        "remember_tokens": {
+            "$2b$12$D4GG8lMVnN9emwru623AL.fEmNZE2uJ1S3ZsulxEj.2ZbUwrgzGIC": 1778326917
+        }
     }
 }

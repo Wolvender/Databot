@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  databot:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount the current directory to /app for hot-reloading in dev
+      # For production, remove this volumes block
+      - .:/app
+    environment:
+      # You can put your GROQ API key here or load it from a .env file
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    restart: unless-stopped

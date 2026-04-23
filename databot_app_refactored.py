@@ -43,7 +43,7 @@ processor = DataProcessor()
 # AUTHENTICATION FLOW
 # ════════════════════════════════════════════════════════════
 if not is_logged_in():
-    render_header()
+    render_header(show_logout=False)
     action, username, password, remember_me = render_login_page()
     
     if action == "login" and username and password:

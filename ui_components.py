@@ -4,29 +4,33 @@ import json
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 from config import STREAMLIT_THEME, LOGO_SVG, APP_NAME
 
 def apply_theme():
-    """Apply premium theme styling to the app using config settings."""
+    """Apply premium theme styling to the app using config settings and custom CSS."""
     st.markdown(STREAMLIT_THEME, unsafe_allow_html=True)
+    # Correct pathing: Ensure the path is relative or absolute as required by the environment
+    css_path = Path("style.css")
+    if css_path.exists():
+        with open(css_path, "r") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-def render_header():
+def render_header(show_logout: bool = True):
     """Render a clean, premium app header with logo, name, and tagline. Returns 'logout' if Sign Out clicked."""
     
-    # Top bar with Sign Out button
-    col1, col2 = st.columns([1, 6])
-    with col1:
-        if st.button("Sign Out", type="secondary", use_container_width=True):
-            return "logout"
+    if show_logout:
+        # Top bar with Sign Out button
+        col1, col2 = st.columns([1, 6])
+        with col1:
+            if st.button("Sign Out", type="secondary", use_container_width=True):
+                return "logout"
     
     st.markdown(
 """
 <div class="main-header">
     <div class="logo">
-        <svg width="60" height="60" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="50" cy="50" r="45" stroke="white" stroke-width="6" stroke-dasharray="10 10"/>
-            <path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <span style="font-size: 2.8rem; line-height: 1;">📊</span>
         DataBot
     </div>
     <p>Intelligent Document Extraction – Fast, Accurate, Secure</p>
@@ -160,34 +164,47 @@ def render_processing_status(uploaded_files, process_callback):
     return processed_count, skipped_count
 
 def render_results_table(processed_items: list):
-    """Render summary table of processed results."""
+    """Render adaptive summary table based on document type."""
     st.subheader(f"Processed Documents ({len(processed_items)})")
     
+    if not processed_items:
+        return pd.DataFrame()
+
     summary_data = []
     for item in processed_items:
         data = item["data"]
-        summary_data.append({
+        doc_type = item.get("document_type", "ledger")
+        
+        row = {
             "File": item["file"],
-            "Record #": item["record_index"] + 1,
-            "Entity": data.get("entity", data.get("vendor_name", data.get("employee_name", "N/A"))),
-            "Date": data.get("date", data.get("invoice_date", "N/A")),
-            "Amount": data.get("amount", data.get("total_amount", 0.0)),
-            "Currency": data.get("currency", "N/A"),
-            "Description": data.get("description", "N/A"),
+            "Type": doc_type.upper(),
+            "Record #": item.get("record_index", 0) + 1,
+        }
+        
+        # Adaptive columns based on doc_type
+        if doc_type == "inventory":
+            row.update({
+                "Item": data.get("item_name", "N/A"),
+                "Quantity": data.get("quantity", 0),
+                "Location": data.get("location", "N/A"),
+            })
+        else:
+            # Default to Ledger/Invoice columns
+            row.update({
+                "Entity": data.get("entity", data.get("vendor_name", "N/A")),
+                "Date": data.get("date", "N/A"),
+                "Amount": data.get("amount", 0.0),
+                "Currency": data.get("currency", "N/A"),
+            })
+            
+        row.update({
             "Status": item["status"].upper(),
-            "Confidence": f"{item['confidence']:.2f}"
+            "Confidence": f"{item.get('confidence', 0.0):.2f}"
         })
+        summary_data.append(row)
     
     df_summary = pd.DataFrame(summary_data)
-    st.dataframe(
-        df_summary,
-        column_config={
-            "Confidence": st.column_config.NumberColumn(format="%.2f"),
-            "Issues": st.column_config.NumberColumn()
-        },
-        hide_index=True,
-        use_container_width=True
-    )
+    st.dataframe(df_summary, hide_index=True, use_container_width=True)
     
     return df_summary
 
@@ -209,7 +226,7 @@ def render_download_section(df_summary: pd.DataFrame, processed_items: list):
     
     # JSON Download
     with col2:
-        full_json = json.dumps([item["raw"] for item in processed_items], indent=2)
+        full_json = json.dumps([item.get("raw", {}) for item in processed_items], indent=2)
         st.download_button(
             "Download Full JSON",
             full_json,
