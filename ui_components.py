@@ -48,7 +48,7 @@ def render_login_page() -> tuple[str, str, str, bool]:
     from auth import get_remembered_credentials
     rem_user, rem_pass, is_rem = get_remembered_credentials()
 
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns([1.5, 2, 1.5])
     with col2:
         if st.session_state.auth_mode == "login":
             with st.form("login_form", clear_on_submit=False):
@@ -56,13 +56,14 @@ def render_login_page() -> tuple[str, str, str, bool]:
                 username = st.text_input("Username", value=rem_user, placeholder="Your username", autocomplete="username")
                 password = st.text_input("Password", type="password", value=rem_pass, placeholder="Your password", autocomplete="current-password")
                 remember_me = st.checkbox("Remember me on this device", value=is_rem)
+                st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
                 submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
+                st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+                switch = st.form_submit_button("Create an account", width="stretch")
 
-            st.markdown("<p class='auth-switch'>Need an account?</p>", unsafe_allow_html=True)
-            if st.button("Create an account", width="stretch"):
+            if switch:
                 st.session_state.auth_mode = "signup"
                 st.rerun()
-
             if submitted:
                 return "login", username, password, remember_me
         else:
@@ -71,13 +72,14 @@ def render_login_page() -> tuple[str, str, str, bool]:
                 username = st.text_input("Username", placeholder="Choose a username", autocomplete="username")
                 password = st.text_input("Password", type="password", placeholder="Choose a password", autocomplete="new-password")
                 remember_me = st.checkbox("Remember me on this device", value=True)
+                st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
                 submitted = st.form_submit_button("Create account", type="primary", width="stretch")
+                st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+                switch = st.form_submit_button("Sign in instead", width="stretch")
 
-            st.markdown("<p class='auth-switch'>Already have an account?</p>", unsafe_allow_html=True)
-            if st.button("Sign in instead", width="stretch"):
+            if switch:
                 st.session_state.auth_mode = "login"
                 st.rerun()
-
             if submitted:
                 return "signup", username, password, remember_me
 
