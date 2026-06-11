@@ -147,23 +147,31 @@ def _write_token_to_localstorage(username: str, raw_token: str):
 
     Note: we use st.components.v1.html for the JS injection.
     """
+    import streamlit.components.v1 as components
     payload = f"{username}:{raw_token}"
-    js = f"""
-    <script>
-      localStorage.setItem("{_LS_KEY}", "{payload}");
-    </script>
-    """
-    st.markdown(js, unsafe_allow_html=True)
+    # Must run through components.html (iframe): scripts inside st.markdown
+    # are injected but never executed by the browser.
+    components.html(
+        f"""
+        <script>
+          window.parent.localStorage.setItem("{_LS_KEY}", "{payload}");
+        </script>
+        """,
+        height=0,
+    )
 
 
 def _clear_token_from_localstorage():
     """Remove the remember-me entry from localStorage."""
-    js = f"""
-    <script>
-      localStorage.removeItem("{_LS_KEY}");
-    </script>
-    """
-    st.markdown(js, unsafe_allow_html=True)
+    import streamlit.components.v1 as components
+    components.html(
+        f"""
+        <script>
+          window.parent.localStorage.removeItem("{_LS_KEY}");
+        </script>
+        """,
+        height=0,
+    )
 
 
 def inject_localstorage_reader():
@@ -178,12 +186,14 @@ def inject_localstorage_reader():
     will take effect on the *second* render (after the JS has run).
     """
     import streamlit.components.v1 as components
+    # Note: components.html() does not accept a `key` argument and cannot
+    # return a value to Python — full auto-login needs a custom bidirectional
+    # component. This reader is currently unused by the app.
     components.html(
         f"""
         <script>
-          const val = localStorage.getItem("{_LS_KEY}");
+          const val = window.parent.localStorage.getItem("{_LS_KEY}");
           if (val) {{
-            // Post the payload to the parent Streamlit window
             window.parent.postMessage({{
               type: "streamlit:setComponentValue",
               value: val
@@ -192,7 +202,6 @@ def inject_localstorage_reader():
         </script>
         """,
         height=0,
-        key="_rm_reader",
     )
 
 

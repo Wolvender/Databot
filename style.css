@@ -1,34 +1,19 @@
-/* Global Premium Overrides */
-:root {
-    --accent: #6b21a8;
-    --bg-dark: #0f172a;
-    --card-bg: #1e293b;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-}
+/* Supplementary styles — design tokens live in config.py STREAMLIT_THEME */
 
-/* Modern Glass Cards */
-.stDataFrame {
-    background: var(--card-bg) !important;
-    border-radius: 12px !important;
-    border: 1px solid rgba(255,255,255,0.05) !important;
-    padding: 1rem !important;
-}
-
-/* Status Badges */
+/* Status badges (used in custom markdown) */
 .status-badge {
-    padding: 0.25rem 0.75rem;
+    padding: 0.2rem 0.7rem;
     border-radius: 999px;
     font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
-.status-complete { background: #166534; color: #bbf7d0; }
-.status-review { background: #991b1b; color: #fecaca; }
+.status-complete { background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+.status-review   { background: rgba(248, 113, 113, 0.12); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
 
-/* Subtle Animations */
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.stApp { animation: fadeIn 0.5s ease-in; }
-
-/* Clean Headers */
-h1, h2, h3 { color: var(--text-main) !important; font-weight: 700 !important; }
+/* Pricing tier cards (st.container(border=True)) inherit the dark theme;
+   keep their borders consistent with the rest of the app */
+[data-testid="stVerticalBlockBorderWrapper"] > div {
+    border-radius: 12px;
+}

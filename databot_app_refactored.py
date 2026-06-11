@@ -84,16 +84,18 @@ if header_action == "logout":
 TAB_NAMES = ["Upload & Process", "View Results", "Account & Billing"]
 tab_upload, tab_results, tab_account = st.tabs(TAB_NAMES)
 
-# JS-based tab switcher: if current_tab is set, click the matching tab button
+# JS-based tab switcher: if current_tab is set, click the matching tab button.
+# Must use components.html (iframe) — scripts inside st.markdown never execute.
 if "current_tab" in st.session_state and st.session_state.current_tab in TAB_NAMES:
+    import streamlit.components.v1 as components
     tab_index = TAB_NAMES.index(st.session_state.current_tab)
     st.session_state.current_tab = None  # reset so it doesn't repeat
-    st.markdown(f"""
+    components.html(f"""
         <script>
         const tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
         if (tabs.length > {tab_index}) {{ tabs[{tab_index}].click(); }}
         </script>
-    """, unsafe_allow_html=True)
+    """, height=0)
 
 # ────────────────────────────────────────────────────────────
 # TAB 1: Upload & Process
@@ -109,7 +111,7 @@ with tab_upload:
             allowed, retry_after = rate_limiter.is_allowed(user)
             
             if not allowed:
-                return False, f"⚠️ Rate limit exceeded! Retry in {retry_after}s or Upgrade."
+                return False, f"Rate limit reached — retry in {retry_after}s or upgrade your plan."
             
             return processor.process_content(file_bytes, file_name)
 
@@ -122,16 +124,16 @@ with tab_upload:
 # TAB 2: View Results
 # ────────────────────────────────────────────────────────────
 with tab_results:
-    st.title("Processed Results")
-    
+    st.title("Results")
+
     if st.session_state.processed:
         # Render summary table
         df_summary = render_results_table(st.session_state.processed)
-        
+
         # Clear all button
-        if st.button("Clear All Processed Data"):
+        if st.button("Clear all"):
             processor.clear_history()
-            st.success("History cleared! Uploader and saved file reset.")
+            st.success("History cleared. Uploader and saved file reset.")
             st.rerun()
         
         # Download section

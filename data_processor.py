@@ -123,7 +123,9 @@ class DataProcessor:
             
             return float(value)
         except ValueError:
-            return value
+            # Contract is "always return a number" — a stray string here
+            # breaks the Amount column and Excel export typing
+            return 0.0
     
     @staticmethod
     def normalize_currency(currency: str) -> str:
@@ -153,21 +155,27 @@ class DataProcessor:
         """
         Process file content using the router to pick the correct plugin.
         """
-        from test_routing import Router
+        from router import Router
         from processor_registry import ProcessorRegistry
-        
+
         file_hash = get_file_hash(file_bytes)
-        
+
         if file_hash in st.session_state.processed_hashes:
             return True, f"Skipped (identical content): {file_name}"
-        
+
         text = extract_text(file_bytes, file_name)
-        
+
         # 1. Identify Document Type
         router = Router()
         doc_type = router.identify_type(text)
         plugin = ProcessorRegistry.get(doc_type)
-        
+
+        if not plugin:
+            # Classifier returned an unregistered label — fall back to the
+            # generic ledger schema instead of failing the whole file
+            doc_type = "ledger"
+            plugin = ProcessorRegistry.get(doc_type)
+
         if not plugin:
             return False, f"Could not identify a registered processor for type: {doc_type}"
 
@@ -192,7 +200,11 @@ class DataProcessor:
                 "data": result_data,
                 "status": "complete"
             })
-            
+            # Track the hash in-session too, so identical files within the
+            # same batch don't each trigger an LLM call
+            st.session_state.processed_hashes.add(file_hash)
+            st.session_state.processed_files.add(file_name)
+
             self.save_history()
             return True, f"Processed {file_name} as {doc_type}"
             
@@ -217,10 +229,16 @@ class DataProcessor:
 
     def remove_entry(self, file_name: str, record_index: int):
         """Remove a specific processed record."""
+        removed = [
+            x for x in st.session_state.processed
+            if x["file"] == file_name and x["record_index"] == record_index
+        ]
         st.session_state.processed = [
             x for x in st.session_state.processed
             if not (x["file"] == file_name and x["record_index"] == record_index)
         ]
         st.session_state.processed_files.discard(file_name)
-        st.session_state.processed_hashes.discard(file_name)
+        # Discard the actual file hash (not the name) so the file can be re-uploaded
+        for x in removed:
+            st.session_state.processed_hashes.discard(x.get("file_hash", ""))
         self.save_history()

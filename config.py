@@ -30,7 +30,13 @@ import streamlit as st
 # API & LLM Settings
 # ────────────────────────────────────────────────
 # Try to get from environment first, then Streamlit Secrets for cloud hosting
-GROQ_API_KEY = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    try:
+        GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
+    except Exception:
+        # No secrets.toml present — st.secrets raises instead of returning None
+        GROQ_API_KEY = None
 
 if not GROQ_API_KEY:
     raise RuntimeError("Missing GROQ_API_KEY. Please add it to .env or Streamlit Secrets and restart.")
@@ -99,159 +105,245 @@ STREAMLIT_THEME = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-    * {
-        font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+    :root {
+        --bg: #0e1014;
+        --surface: #161920;
+        --surface-2: #1c2029;
+        --border: #262b36;
+        --border-strong: #343b49;
+        --text: #e7e9ee;
+        --muted: #8b93a4;
+        --accent: #6366f1;
+        --accent-hover: #7c7ff5;
+        --success: #34d399;
+        --warning: #fbbf24;
+        --danger: #f87171;
+        --radius: 8px;
+    }
+
+    html, body, .stApp, .stApp * {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
 
     .stApp {
-        background: #121212;
-        color: #e0e0e0;
+        background: var(--bg);
+        color: var(--text);
     }
 
-    header, .stApp > header { 
-        display: none !important; 
+    header, .stApp > header {
+        display: none !important;
     }
 
-    /* Premium header */
-    .main-header {
-        background: linear-gradient(135deg, #4a148c, #6a1b9a, #8e24aa);
-        padding: 2.8rem 4rem;
-        border-radius: 0 0 28px 28px;
-        margin: -1rem -2rem 3.5rem -2rem;
-        color: white;
-        text-align: center;
-        box-shadow: 0 12px 48px rgba(0,0,0,0.55);
+    .block-container {
+        max-width: 1180px;
+        padding-top: 1.25rem;
     }
 
-    .main-header .logo {
-        font-size: 3.8rem;
-        font-weight: 800;
-        letter-spacing: -1.2px;
-        margin: 0;
+    /* Typography — calmer scale than Streamlit defaults */
+    h1 { font-size: 1.6rem !important; font-weight: 650 !important; letter-spacing: -0.01em; }
+    h2 { font-size: 1.2rem !important; font-weight: 600 !important; }
+    h3 { font-size: 1.05rem !important; font-weight: 600 !important; }
+
+    /* Top bar */
+    .app-topbar {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.3rem 0;
+    }
+
+    .app-topbar .logo-mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--accent);
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 1.2rem;
+        flex-shrink: 0;
     }
 
-    .main-header .logo svg {
-        width: 64px;
-        height: 64px;
+    .app-topbar .wordmark {
+        font-size: 1.15rem;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        color: var(--text);
     }
 
-    .main-header p {
-        font-size: 1.35rem;
-        opacity: 0.92;
-        margin: 14px 0 0;
-        letter-spacing: 0.4px;
+    .app-topbar .subtitle {
+        color: var(--muted);
+        font-size: 0.88rem;
+        margin-left: 0.4rem;
+        padding-left: 0.9rem;
+        border-left: 1px solid var(--border);
     }
 
-    /* Glassmorphic cards – deeper & more premium */
-    .glass-card {
-        background: rgba(30, 30, 30, 0.72);
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
-        border: 1px solid rgba(255,255,255,0.05);
-        border-radius: 20px;
-        padding: 2.2rem;
-        margin: 2.2rem 0;
-        box-shadow: 0 10px 38px rgba(0,0,0,0.45);
+    .app-divider {
+        border-bottom: 1px solid var(--border);
+        margin: 0.4rem 0 1.4rem 0;
     }
 
-    /* Expander – clean, no overlap, better spacing */
-    .stExpander {
-        background: rgba(30, 30, 30, 0.7) !important;
-        border: 1px solid rgba(255,255,255,0.05) !important;
-        border-radius: 16px !important;
-        margin-bottom: 1.8rem !important;
+    /* Buttons — flat, one accent */
+    .stButton > button,
+    .stDownloadButton > button,
+    [data-testid="stFormSubmitButton"] > button {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        padding: 0.5rem 1.1rem;
+        font-weight: 500;
+        font-size: 0.95rem;
+        box-shadow: none;
+        transition: background 0.15s ease, border-color 0.15s ease;
     }
 
-    .stExpander summary {
-        padding: 1.5rem 1.8rem !important;
-        font-weight: 600 !important;
-        color: #f0f0f0 !important;
-        font-size: 1.15rem !important;
-        line-height: 1.5 !important;
+    .stButton > button:hover,
+    .stDownloadButton > button:hover,
+    [data-testid="stFormSubmitButton"] > button:hover {
+        background: var(--surface-2);
+        border-color: var(--accent);
+        color: var(--text);
     }
 
-    .stExpander > div > div {
-        padding: 1.6rem 1.8rem !important;
-        font-size: 1rem !important;
-        line-height: 1.7 !important;
-        color: #e0e0e0 !important;
+    .stButton > button[kind="primary"],
+    .stDownloadButton > button[kind="primary"],
+    [data-testid="stFormSubmitButton"] > button[kind="primary"],
+    [data-testid="baseButton-primary"] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #ffffff;
     }
 
-    /* Buttons – more premium feel */
-    .stButton > button {
-        background: linear-gradient(90deg, #10b981, #059669) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 14px !important;
-        padding: 14px 32px !important;
-        font-weight: 600 !important;
-        font-size: 1.1rem !important;
-        box-shadow: 0 6px 20px rgba(16,185,129,0.35) !important;
-        transition: all 0.28s ease !important;
+    .stButton > button[kind="primary"]:hover,
+    .stDownloadButton > button[kind="primary"]:hover,
+    [data-testid="stFormSubmitButton"] > button[kind="primary"]:hover,
+    [data-testid="baseButton-primary"]:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+        color: #ffffff;
     }
 
-    .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 12px 32px rgba(16,185,129,0.5) !important;
-        background: linear-gradient(90deg, #34d399, #10b981) !important;
+    .stButton > button:disabled {
+        opacity: 0.45;
+        border-color: var(--border);
     }
 
-    /* Tabs */
-    .stTabs [role="tab"] {
-        font-size: 1.12rem;
-        padding: 16px 32px;
-        color: #a0a0a0;
-        transition: all 0.2s;
+    /* Tabs — underline style */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.35rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        padding: 0.55rem 0.9rem;
+        color: var(--muted);
+        font-size: 0.95rem;
+        font-weight: 500;
     }
 
     .stTabs [aria-selected="true"] {
-        color: white;
-        background: rgba(106,27,154,0.22);
-        border-radius: 14px 14px 0 0;
+        color: var(--text);
+        background: transparent;
     }
 
-    /* Confidence helpers (can be used later with st.markdown) */
-    .conf-high  { color: #34d399; font-weight: 600; }
-    .conf-medium { color: #fbbf24; font-weight: 600; }
-    .conf-low    { color: #f87171; font-weight: 600; }
-
-    /* Other elements */
-    .stSuccess { 
-        background: #1e4620; 
-        color: #c8e6c9; 
-        border: 1px solid #4caf50; 
-        border-radius: 12px; 
-        padding: 12px; 
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: var(--accent);
     }
-    hr { border-color: #333333; }
-    .stSpinner { text-align: center; }
+
+    .stTabs [data-baseweb="tab-border"] {
+        background-color: transparent;
+    }
+
+    /* Inputs */
+    .stTextInput [data-baseweb="input"] {
+        background: var(--surface);
+        border-color: var(--border-strong);
+        border-radius: var(--radius);
+    }
+
+    .stTextInput [data-baseweb="input"]:focus-within {
+        border-color: var(--accent);
+    }
+
+    .stTextInput input {
+        color: var(--text);
+    }
+
+    /* Forms (login card) */
+    [data-testid="stForm"] {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.8rem;
+    }
+
+    /* File uploader */
+    [data-testid="stFileUploaderDropzone"] {
+        background: var(--surface);
+        border: 1px dashed var(--border-strong);
+        border-radius: 10px;
+    }
+
+    /* Expander */
+    [data-testid="stExpander"] {
+        background: var(--surface);
+        border: 1px solid var(--border) !important;
+        border-radius: 10px;
+    }
+
+    /* Dataframe */
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+    }
+
+    /* Progress bar */
+    .stProgress > div > div > div > div {
+        background-color: var(--accent);
+    }
 
     /* Result banner */
     .result-banner {
-        background: rgba(16,185,129,0.1);
-        padding: 1rem;
-        border-radius: 8px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--success);
+        border-radius: var(--radius);
+        padding: 0.8rem 1rem;
         margin: 1rem 0;
-        color: #10b981;
-        border: 1px solid rgba(16,185,129,0.2);
+        color: var(--text);
+        font-size: 0.95rem;
     }
 
-    /* Additional spacing for detailed results to prevent overlap */
-    .stColumn > div > div {
-        padding: 0.5rem;
+    /* Auth card heading */
+    .auth-title {
+        text-align: center;
+        margin-bottom: 1.25rem;
+        color: var(--text);
     }
 
+    .auth-switch {
+        text-align: center;
+        margin-top: 1rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+    }
+
+    /* Confidence helpers */
+    .conf-high   { color: var(--success); font-weight: 600; }
+    .conf-medium { color: var(--warning); font-weight: 600; }
+    .conf-low    { color: var(--danger); font-weight: 600; }
+
+    hr { border-color: var(--border); }
     </style>
 """
 
 LOGO_SVG = """
-<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="45" stroke="white" stroke-width="6" stroke-dasharray="10 10"/>
-    <path d="M30 50 L45 65 L70 35" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="1.5" width="12" height="2.4" rx="1.2" fill="white"/>
+    <rect x="1" y="5.8" width="8.5" height="2.4" rx="1.2" fill="white" opacity="0.75"/>
+    <rect x="1" y="10.1" width="11" height="2.4" rx="1.2" fill="white" opacity="0.5"/>
 </svg>
 """
 
@@ -261,4 +353,4 @@ LOGO_SVG = """
 PAGE_TITLE = "DataBot – Intelligent Data Entry"
 PAGE_ICON = "📊"
 PAGE_LAYOUT = "wide"
-APP_NAME = "Databot"  # Change this to customize the header name
+APP_NAME = "DataBot"  # Change this to customize the header name
