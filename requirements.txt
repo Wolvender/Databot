@@ -2,10 +2,12 @@
 # Modernized for compatibility with Python 3.11/3.12/3.13
 
 # Core Framework
-streamlit>=1.31.0
+# Pinned to the locally verified version — newer Streamlit releases change
+# the file-uploader layout and break the custom theme
+streamlit==1.54.0
 
 # LLM & AI
-langchain-groq
+langchain-groq==1.1.2
 langchain
 openai
 anthropic

@@ -188,7 +188,12 @@ class DataProcessor:
             confidence = result_data.get("confidence", 0.0)
             # One business document often holds many entries (count sheets,
             # payment emails, multi-employee timesheets) — store each as a row
-            records = result_data.get("records") or [result_data]
+            records = result_data.get("records")
+            if records is None:
+                records = [result_data]
+            if not records:
+                # Fail loudly instead of storing an empty N/A row
+                return False, f"No records could be extracted from {file_name} — is it a supported document type?"
 
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for i, record in enumerate(records):
