@@ -1,0 +1,32 @@
+TECHSTAFF RECRUITMENT AGENCY
+WEEKLY TIMESHEET - Week 23 (June 1 - June 5, 2026)
+Client: Heineken Nederland
+Project: SAP S/4HANA migration
+Approved by: K. Smit (project lead)
+
+=========================================================
+Employee: M. Janssen (Senior SAP Consultant)
+Rate: EUR 95/hour
+
+  Mon 01-06    8.0 hours   Data migration scripts
+  Tue 02-06    8.0 hours   Data migration scripts
+  Wed 03-06    6.5 hours   Stakeholder workshop
+  Thu 04-06    8.0 hours   Testing FI/CO module
+  Fri 05-06    4.0 hours   Documentation
+
+  Week total: 34.5 hours
+
+=========================================================
+Employee: P. de Vries (Junior Developer)
+Rate: EUR 55/hour
+
+  Mon 01-06    8.0 hours   ABAP bugfixes
+  Tue 02-06    8.0 hours   ABAP bugfixes
+  Wed 03-06    8.0 hours   Interface testing
+  Thu 04-06    8.0 hours   Interface testing
+  Fri 05-06    8.0 hours   Code review support
+
+  Week total: 40.0 hours
+
+=========================================================
+Total billable this week: 74.5 hours

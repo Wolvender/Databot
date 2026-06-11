@@ -183,30 +183,44 @@ class DataProcessor:
             # 2. Use Dynamic Schema
             structured_llm = self.llm.with_structured_output(plugin.schema)
             prompt = f"{plugin.system_prompt}\n\nContent:\n{text}"
-            
+
             result_data = structured_llm.invoke(prompt).model_dump()
-            
-            # Post-processing: Clean numeric fields if they exist
-            if "amount" in result_data:
-                result_data["amount"] = self.clean_number(result_data["amount"])
-            
-            # Store processed record
-            st.session_state.processed.append({
-                "file": file_name,
-                "file_hash": file_hash,
-                "record_index": 0,
-                "document_type": doc_type,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "data": result_data,
-                "status": "complete"
-            })
+            confidence = result_data.get("confidence", 0.0)
+            # One business document often holds many entries (count sheets,
+            # payment emails, multi-employee timesheets) — store each as a row
+            records = result_data.get("records") or [result_data]
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for i, record in enumerate(records):
+                for money_field in ("amount", "tax_amount"):
+                    if money_field in record:
+                        record[money_field] = self.clean_number(record[money_field])
+                if "currency" in record:
+                    record["currency"] = self.normalize_currency(record["currency"])
+
+                issues = DataValidator.validate_record(record, doc_type)
+                has_errors = any(issue.get("severity") == "error" for issue in issues)
+
+                st.session_state.processed.append({
+                    "file": file_name,
+                    "file_hash": file_hash,
+                    "record_index": i,
+                    "document_type": doc_type,
+                    "timestamp": timestamp,
+                    "data": record,
+                    "confidence": confidence,
+                    "validation_issues": issues,
+                    "status": "review" if has_errors else "complete"
+                })
+
             # Track the hash in-session too, so identical files within the
             # same batch don't each trigger an LLM call
             st.session_state.processed_hashes.add(file_hash)
             st.session_state.processed_files.add(file_name)
 
             self.save_history()
-            return True, f"Processed {file_name} as {doc_type}"
+            record_word = "record" if len(records) == 1 else "records"
+            return True, f"Processed {file_name} as {doc_type} ({len(records)} {record_word})"
             
         except Exception as e:
             from logger import logger

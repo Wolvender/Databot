@@ -14,8 +14,9 @@ class Router:
         prompt = f"""You are a document classifier. Analyze the text and categorize it into one of the following types: {', '.join(self.types)}.
 
         Guidelines:
-        - If the text mentions "Invoice", "Bill", "Payment", "Amount", "Currency", or "Hours", categorize it as 'invoice'.
-        - If the text mentions "Inventory", "Warehouse", "Units", "Items", or "Stock", categorize it as 'inventory'.
+        - Invoices, bills, receipts, payment confirmations or amounts owed -> 'invoice'.
+        - Timesheets, hours worked, employee hour registration or payroll periods -> 'timesheet'.
+        - Inventory counts, warehouse stock, units on hand or count sheets -> 'inventory'.
         - Return ONLY the name of the type.
 
         Text: {text[:1000]}"""

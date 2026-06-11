@@ -155,61 +155,97 @@ def render_processing_status(uploaded_files, process_callback):
 
     return processed_count, skipped_count
 
-def render_results_table(processed_items: list):
-    """Render adaptive summary table based on document type."""
-    st.subheader(f"Processed documents ({len(processed_items)})")
-    
-    if not processed_items:
-        return pd.DataFrame()
-
+def build_summary_frames(processed_items: list) -> dict:
+    """Build one summary DataFrame per document type (columns differ per type)."""
     summary_data = []
     for item in processed_items:
         data = item["data"]
         doc_type = item.get("document_type", "ledger")
-        
+        # ledger and invoice share the same schema — merge them into one group
+        if doc_type == "ledger":
+            doc_type = "invoice"
+
         row = {
             "File": item["file"],
             "Type": doc_type.upper(),
             "Record #": item.get("record_index", 0) + 1,
         }
-        
+
         # Adaptive columns based on doc_type
         if doc_type == "inventory":
             row.update({
                 "Item": data.get("item_name", "N/A"),
+                "SKU": data.get("sku", "N/A"),
                 "Quantity": data.get("quantity", 0),
                 "Location": data.get("location", "N/A"),
+            })
+        elif doc_type == "timesheet":
+            row.update({
+                "Employee": data.get("employee", "N/A"),
+                "Period": data.get("period", "N/A"),
+                "Project": data.get("project", "N/A"),
+                "Hours": data.get("hours", 0.0),
+                "Rate": data.get("rate", "N/A"),
             })
         else:
             # Default to Ledger/Invoice columns
             row.update({
                 "Entity": data.get("entity", data.get("vendor_name", "N/A")),
                 "Date": data.get("date", "N/A"),
+                "Reference": data.get("reference", "N/A"),
                 "Amount": data.get("amount", 0.0),
+                "Tax": data.get("tax_amount", 0.0),
                 "Currency": data.get("currency", "N/A"),
+                "Due date": data.get("due_date", "N/A"),
             })
-            
+
         row.update({
             "Status": item["status"].upper(),
             "Confidence": f"{item.get('confidence', 0.0):.2f}"
         })
         summary_data.append(row)
-    
-    df_summary = pd.DataFrame(summary_data)
-    st.dataframe(df_summary, hide_index=True, width="stretch")
-    
-    return df_summary
 
-def render_download_section(df_summary: pd.DataFrame, processed_items: list):
-    """Render download buttons for results."""
+    frames = {}
+    df_all = pd.DataFrame(summary_data)
+    for doc_type in df_all["Type"].unique():
+        df_type = df_all[df_all["Type"] == doc_type].dropna(axis=1, how="all")
+        frames[doc_type] = df_type.reset_index(drop=True)
+    return frames
+
+
+_TYPE_LABELS = {
+    "INVOICE": "Invoices & payments",
+    "LEDGER": "Invoices & payments",
+    "INVENTORY": "Inventory",
+    "TIMESHEET": "Timesheets",
+}
+
+
+def render_results_table(processed_items: list) -> dict:
+    """Render one summary table per document type. Returns the frames dict."""
+    st.subheader(f"Processed documents ({len(processed_items)})")
+
+    if not processed_items:
+        return {}
+
+    frames = build_summary_frames(processed_items)
+    for doc_type, df_type in frames.items():
+        st.markdown(f"**{_TYPE_LABELS.get(doc_type, doc_type.title())}** — {len(df_type)} records")
+        st.dataframe(df_type, hide_index=True, width="stretch")
+
+    return frames
+
+def render_download_section(frames: dict, processed_items: list):
+    """Render download buttons for results. `frames` is one DataFrame per document type."""
     st.subheader("Download results")
 
     col1, col2, col3 = st.columns(3)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M')
 
-    # CSV Download
+    # CSV Download — all types stacked, empty cells where columns differ
     with col1:
-        csv_summary = df_summary.to_csv(index=False).encode('utf-8')
+        df_combined = pd.concat(frames.values(), ignore_index=True) if frames else pd.DataFrame()
+        csv_summary = df_combined.fillna("").to_csv(index=False).encode('utf-8')
         st.download_button(
             "Download CSV",
             csv_summary,
@@ -218,9 +254,21 @@ def render_download_section(df_summary: pd.DataFrame, processed_items: list):
             width="stretch"
         )
 
-    # JSON Download
+    # JSON Download — full records including validation issues and confidence
     with col2:
-        full_json = json.dumps([item.get("raw", {}) for item in processed_items], indent=2)
+        export_items = [
+            {
+                "file": item.get("file"),
+                "document_type": item.get("document_type"),
+                "timestamp": item.get("timestamp"),
+                "data": item.get("data", {}),
+                "confidence": item.get("confidence", 0.0),
+                "validation_issues": item.get("validation_issues", []),
+                "status": item.get("status"),
+            }
+            for item in processed_items
+        ]
+        full_json = json.dumps(export_items, indent=2, ensure_ascii=False)
         st.download_button(
             "Download JSON",
             full_json,
@@ -229,10 +277,14 @@ def render_download_section(df_summary: pd.DataFrame, processed_items: list):
             width="stretch"
         )
 
-    # Excel Download — generated up front so one click downloads directly
+    # Excel Download — one worksheet per document type, generated up front
+    # so one click downloads directly
     with col3:
         output = BytesIO()
-        df_summary.to_excel(output, index=False, engine='openpyxl')
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            for doc_type, df_type in frames.items():
+                sheet = _TYPE_LABELS.get(doc_type, doc_type.title())[:31]
+                df_type.to_excel(writer, sheet_name=sheet, index=False)
         st.download_button(
             "Download Excel",
             output.getvalue(),

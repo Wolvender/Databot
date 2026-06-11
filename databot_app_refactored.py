@@ -127,17 +127,17 @@ with tab_results:
     st.title("Results")
 
     if st.session_state.processed:
-        # Render summary table
-        df_summary = render_results_table(st.session_state.processed)
+        # Render summary tables (one per document type)
+        summary_frames = render_results_table(st.session_state.processed)
 
         # Clear all button
         if st.button("Clear all"):
             processor.clear_history()
             st.success("History cleared. Uploader and saved file reset.")
             st.rerun()
-        
+
         # Download section
-        render_download_section(df_summary, st.session_state.processed)
+        render_download_section(summary_frames, st.session_state.processed)
         
         # Detailed results removed as per user request
         # render_detailed_results(

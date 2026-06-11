@@ -1,0 +1,17 @@
+BOUWMARKT DISTRIBUTIECENTRUM TILBURG
+CYCLE COUNT SHEET - ZONE B (fasteners & fittings)
+Count date: 10-06-2026
+Counted by: R. Bakker
+Verified by: pending
+
+SKU        Item description                    Counted   Bin location
+---------------------------------------------------------------------
+BLT-4402   Steel bolts M8 box (500 pcs)          142     B-03-2
+BLT-4403   Steel bolts M10 box (500 pcs)          87     B-03-3
+NUT-1120   Hex nuts M8 box (1000 pcs)             64     B-04-1
+WSH-0233   Washers M8 zinc box (1000 pcs)        103     B-04-2
+ANC-7741   Wall anchors 8mm box (100 pcs)        211     B-05-1
+SCR-3310   Wood screws 4x40 box (200 pcs)        356     B-06-4
+
+Notes: BLT-4403 shows 87 counted vs 92 in system - possible shrinkage,
+flag for recount. All other counts within tolerance.

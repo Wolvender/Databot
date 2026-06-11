@@ -46,23 +46,23 @@ class DataValidator:
             return False, f"{field_name} must be a valid number"
     
     @staticmethod
-    def validate_date(date_str: str, field_name: str = "date") -> Tuple[bool, str]:
-        """Validate date format."""
+    def validate_date(date_str: str, field_name: str = "date", allow_future: bool = False) -> Tuple[bool, str]:
+        """Validate date format. Due dates may legitimately lie in the future."""
         if not date_str:
             return False, f"{field_name} is required"
-        
+
         for fmt in DataValidator.DATE_FORMATS:
             try:
                 parsed_date = datetime.strptime(str(date_str), fmt)
                 # Check if date is reasonable (not in future, not too old)
-                if parsed_date > datetime.now():
+                if not allow_future and parsed_date > datetime.now():
                     return False, f"{field_name} cannot be in the future"
                 if parsed_date.year < 1900:
                     return False, f"{field_name} is too old"
                 return True, ""
             except ValueError:
                 continue
-        
+
         return False, f"{field_name} has invalid format"
     
     @staticmethod
@@ -121,7 +121,7 @@ class DataValidator:
             "total_amount": lambda v: DataValidator.validate_amount(v, "total_amount"),
             "date": lambda v: DataValidator.validate_date(v, "date"),
             "invoice_date": lambda v: DataValidator.validate_date(v, "invoice_date"),
-            "due_date": lambda v: DataValidator.validate_date(v, "due_date"),
+            "due_date": lambda v: DataValidator.validate_date(v, "due_date", allow_future=True),
             "reference": lambda v: DataValidator.validate_invoice_number(v) if v and v != "N/A" else (True, ""),
             "invoice_number": DataValidator.validate_invoice_number,
         }
