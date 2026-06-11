@@ -209,7 +209,10 @@ def build_summary_frames(processed_items: list) -> dict:
     df_all = pd.DataFrame(summary_data)
     for doc_type in df_all["Type"].unique():
         df_type = df_all[df_all["Type"] == doc_type].dropna(axis=1, how="all")
-        frames[doc_type] = df_type.reset_index(drop=True)
+        # Consistent column order regardless of upload order: data fields
+        # in the middle, Status/Confidence always at the end
+        ordered = [c for c in df_type.columns if c not in ("Status", "Confidence")] + ["Status", "Confidence"]
+        frames[doc_type] = df_type[ordered].reset_index(drop=True)
     return frames
 
 
