@@ -280,18 +280,39 @@ def render_download_section(frames: dict, processed_items: list):
             width="stretch"
         )
 
-    # Excel Download — one worksheet per document type, generated up front
-    # so one click downloads directly
+    # Excel Download — pick which document type to export, then one click
+    # downloads a workbook with the matching worksheet(s)
     with col3:
+        # Map each available label to its doc_type key(s); group keys that
+        # share a label (e.g. invoice/ledger) so they export together.
+        label_to_types: dict = {}
+        for dt in frames.keys():
+            label = _TYPE_LABELS.get(dt, dt.title())
+            label_to_types.setdefault(label, []).append(dt)
+
+        export_options = ["All types"] + list(label_to_types.keys())
+        selected = st.selectbox(
+            "What to export",
+            export_options,
+            key="excel_export_choice",
+        )
+
+        if selected == "All types":
+            export_frames = frames
+            file_suffix = "all"
+        else:
+            export_frames = {dt: frames[dt] for dt in label_to_types[selected]}
+            file_suffix = selected.lower().replace(" & ", "_").replace(" ", "_")
+
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            for doc_type, df_type in frames.items():
+            for doc_type, df_type in export_frames.items():
                 sheet = _TYPE_LABELS.get(doc_type, doc_type.title())[:31]
                 df_type.to_excel(writer, sheet_name=sheet, index=False)
         st.download_button(
             "Download Excel",
             output.getvalue(),
-            f"databot_results_{timestamp}.xlsx",
+            f"databot_{file_suffix}_{timestamp}.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             width="stretch"
         )
