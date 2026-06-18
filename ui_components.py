@@ -1,6 +1,7 @@
 # ui_components.py - Reusable UI components and rendering
 import streamlit as st
 import json
+import zipfile
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
@@ -304,23 +305,45 @@ def render_download_section(frames: dict, processed_items: list):
             width="stretch"
         )
 
-    # Excel Download — exports the scope chosen in the selector above
+    # Excel Download — exports the scope chosen in the selector above.
+    # A single type downloads as one .xlsx; "All types" bundles a separate
+    # .xlsx per type into a .zip (one download can't push multiple files).
     with col3:
-        # One clean sheet per document type. The schemas differ too much to
-        # merge into a single sheet without a sparse mess, so "All types"
-        # simply includes every type's sheet (check the tabs at the bottom).
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            for doc_type, df_type in export_frames.items():
-                sheet = _TYPE_LABELS.get(doc_type, doc_type.title())[:31]
+        def _xlsx_bytes(doc_type, df_type) -> bytes:
+            buf = BytesIO()
+            sheet = _TYPE_LABELS.get(doc_type, doc_type.title())[:31]
+            with pd.ExcelWriter(buf, engine='openpyxl') as writer:
                 df_type.to_excel(writer, sheet_name=sheet, index=False)
-        st.download_button(
-            "Download Excel",
-            output.getvalue(),
-            f"databot_{file_suffix}_{timestamp}.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            width="stretch"
-        )
+            return buf.getvalue()
+
+        def _safe_name(doc_type) -> str:
+            label = _TYPE_LABELS.get(doc_type, doc_type.title())
+            return label.lower().replace(" & ", "_").replace(" ", "_")
+
+        if len(export_frames) > 1:
+            zip_buf = BytesIO()
+            with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                for doc_type, df_type in export_frames.items():
+                    zf.writestr(
+                        f"databot_{_safe_name(doc_type)}_{timestamp}.xlsx",
+                        _xlsx_bytes(doc_type, df_type),
+                    )
+            st.download_button(
+                "Download Excel (.zip)",
+                zip_buf.getvalue(),
+                f"databot_{file_suffix}_{timestamp}.zip",
+                "application/zip",
+                width="stretch"
+            )
+        else:
+            doc_type, df_type = next(iter(export_frames.items()))
+            st.download_button(
+                "Download Excel",
+                _xlsx_bytes(doc_type, df_type),
+                f"databot_{file_suffix}_{timestamp}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                width="stretch"
+            )
 
 def render_detailed_results(processed_items: list, remove_callback):
     """Detailed results removed as per user request."""
