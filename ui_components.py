@@ -306,13 +306,11 @@ def render_download_section(frames: dict, processed_items: list):
 
     # Excel Download — exports the scope chosen in the selector above
     with col3:
+        # One clean sheet per document type. The schemas differ too much to
+        # merge into a single sheet without a sparse mess, so "All types"
+        # simply includes every type's sheet (check the tabs at the bottom).
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # For "All types", lead with a combined sheet so every record is
-            # visible on open — the per-type tabs follow it.
-            if selected == "All types" and len(export_frames) > 1:
-                combined = pd.concat(export_frames.values(), ignore_index=True).fillna("")
-                combined.to_excel(writer, sheet_name="All records", index=False)
             for doc_type, df_type in export_frames.items():
                 sheet = _TYPE_LABELS.get(doc_type, doc_type.title())[:31]
                 df_type.to_excel(writer, sheet_name=sheet, index=False)
